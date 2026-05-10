@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEXUS OS — Cockpit Personnel</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- ═══════════════════════ BOOT SCREEN ═══════════════════════ -->
+  <div id="boot-screen">
+    <canvas id="hex-canvas"></canvas>
+    <div class="boot-content">
+      <div class="boot-logo">
+        <div class="logo-ring ring-1"></div>
+        <div class="logo-ring ring-2"></div>
+        <div class="logo-ring ring-3"></div>
+        <div class="logo-core">
+          <span class="logo-text">NEXUS</span>
+          <span class="logo-sub">OS v2.0</span>
+        </div>
+      </div>
+      <div class="boot-status" id="boot-status">SYSTÈME EN ATTENTE</div>
+      <button class="btn-on" id="btn-on" onclick="bootSystem()">
+        <div class="btn-on-ring"></div>
+        <div class="btn-on-inner"><span>ON</span></div>
+      </button>
+      <div class="boot-loading" id="boot-loading">
+        <div class="loading-bar"><div class="loading-fill" id="loading-fill"></div></div>
+        <div class="loading-text" id="loading-text">EN ATTENTE...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ MAIN COCKPIT ═══════════════════════ -->
+  <div id="cockpit" class="hidden">
+
+    <!-- HUD Overlay -->
+    <div class="hud-overlay">
+      <div class="scan-line"></div>
+      <div class="corner-bracket tl"></div>
+      <div class="corner-bracket tr"></div>
+      <div class="corner-bracket bl"></div>
+      <div class="corner-bracket br"></div>
+    </div>
+
+    <!-- HEADER -->
+    <header class="cockpit-header">
+      <div class="header-left">
+        <div class="logo-small">NEXUS<span>OS</span></div>
+        <div class="system-status">
+          <span class="status-dot"></span>
+          <span id="system-status-text">SYSTÈME ACTIF</span>
+        </div>
+      </div>
+      <div class="header-center">
+        <div class="time-display" id="time-display">00:00:00</div>
+        <div class="date-display" id="date-display">--- -- ---- ----</div>
+      </div>
+      <div class="header-right">
+        <div class="power-level">
+          <span class="label">PWR</span>
+          <div class="power-bars">
+            <div class="bar active"></div><div class="bar active"></div>
+            <div class="bar active"></div><div class="bar active"></div>
+            <div class="bar"></div>
+          </div>
+        </div>
+        <button class="header-btn" onclick="openSettings()">⚙ CONFIG</button>
+      </div>
+    </header>
+
+    <!-- PANELS -->
+    <main class="cockpit-main home-mode" id="cockpit-main">
+
+      <section class="cockpit-home" id="cockpit-home"></section>
+
+      <!-- ── CHAT PANEL ── -->
+      <div class="panel" id="panel-chat">
+        <div class="panel-header">
+          <h2>◈ INTERFACE IA</h2>
+          <div class="panel-header-actions">
+            <select id="ai-model" onchange="updateAIModel(this.value)">
+              <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+            </select>
+            <button class="panel-close-btn" id="tts-toggle" onclick="toggleSpeech()">AUDIO OFF</button>
+            <button class="panel-close-btn" onclick="closePanel()">RETOUR CENTRE</button>
+          </div>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+          <div class="message system">
+            <span class="msg-icon">◈</span>
+            <div class="msg-content">
+              <div class="msg-header">NEXUS IA <span class="msg-time">--:--</span></div>
+              <div class="msg-text">Bienvenue dans NEXUS OS. Choisissez votre provider IA via ⚙ CONFIG, puis lancez le serveur Node.js pour activer le chat. Je peux aussi déclencher des actions dans votre cockpit — dites-moi d'ajouter un projet, créer une tâche, ou lancer une alerte.</div>
+            </div>
+          </div>
+        </div>
+        <div class="chat-input-area">
+          <div class="input-wrapper">
+            <input type="text" id="chat-input" placeholder="Entrez votre message..." onkeydown="handleChatKey(event)" autocomplete="off">
+            <button class="send-btn" onclick="sendMessage()">ENVOYER ▶</button>
+          </div>
+          <div class="chat-quick-actions">
+            <button class="quick-action" onclick="quickPrompt('status')">◦ Statut système</button>
+            <button class="quick-action" onclick="quickPrompt('projects')">◦ Mes projets</button>
+            <button class="quick-action" onclick="quickPrompt('market')">◦ Analyse marché</button>
+            <button class="quick-action" onclick="quickPrompt('plan')">◦ Plan du jour</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── DASHBOARD PANEL ── -->
+      <div class="panel" id="panel-dashboard">
+        <div class="panel-header">
+          <h2>◉ TABLEAU DE BORD</h2>
+          <div class="panel-header-actions">
+            <button class="action-btn green" onclick="openProjectModal()">+ PROJET</button>
+            <button class="panel-close-btn" onclick="closePanel()">RETOUR CENTRE</button>
+          </div>
+        </div>
+        <div class="dashboard-grid">
+          <div class="stats-row">
+            <div class="stat-card">
+              <div class="stat-label">PROJETS ACTIFS</div>
+              <div class="stat-value" id="stat-projects">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">TÂCHES EN COURS</div>
+              <div class="stat-value" id="stat-tasks">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">TÂCHES TERMINÉES</div>
+              <div class="stat-value" id="stat-done">0</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">UPTIME SESSION</div>
+              <div class="stat-value small" id="stat-uptime">00:00</div>
+            </div>
+          </div>
+          <div class="dash-columns">
+            <div class="dash-section">
+              <h3>PROJETS</h3>
+              <div class="projects-list" id="projects-list">
+                <div class="empty-state">AUCUN PROJET — CLIQUEZ SUR + PROJET</div>
+              </div>
+            </div>
+            <div class="dash-section">
+              <h3>TÂCHES RAPIDES</h3>
+              <div class="setting-group">
+                <label>PROJET SÉLECTIONNÉ</label>
+                <select id="task-project-select" onchange="selectTaskProject(this.value)">
+                  <option value="">Choisir un projet</option>
+                </select>
+              </div>
+              <div class="task-input-row">
+                <input type="text" id="task-input" placeholder="Nouvelle tâche..." onkeydown="if(event.key==='Enter')addTask()">
+                <button id="task-add-btn" onclick="addTask()">+</button>
+              </div>
+              <div class="tasks-list" id="tasks-list">
+                <div class="empty-state">AUCUNE TÂCHE</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PLANNING PANEL ── -->
+      <div class="panel" id="panel-planning">
+        <div class="panel-header">
+          <h2>◎ CALENDRIER / AGENDA</h2>
+          <div class="panel-header-actions">
+            <button class="panel-close-btn" type="button" onclick="shiftPlanningMonth(-1)">◀ MOIS</button>
+            <button class="panel-close-btn" type="button" onclick="goToCurrentPlanningMonth()">AUJOURD'HUI</button>
+            <button class="panel-close-btn" type="button" onclick="shiftPlanningMonth(1)">MOIS ▶</button>
+            <button class="panel-close-btn" onclick="closePanel()">RETOUR CENTRE</button>
+          </div>
+        </div>
+        <div class="planning-panel" id="planning-panel"></div>
+      </div>
+
+      <!-- ── DOCUMENT PANEL ── -->
+      <div class="panel" id="panel-document">
+        <div class="panel-header">
+          <h2>◆ CARNET DOCUMENTAIRE</h2>
+          <div class="panel-header-actions">
+            <button class="action-btn green" type="button" onclick="createDocumentNote()">+ NOTE</button>
+            <button class="panel-close-btn" onclick="closePanel()">RETOUR CENTRE</button>
+          </div>
+        </div>
+        <div class="document-panel" id="document-panel"></div>
+      </div>
+
+      <!-- ── PERSONALITY PANEL ── -->
+      <div class="panel" id="panel-personality">
+        <div class="panel-header">
+          <h2>◎ PERSONNALITÉ NEXUS</h2>
+          <div class="panel-header-actions">
+            <button class="panel-close-btn" onclick="closePanel()">RETOUR CENTRE</button>
+          </div>
+        </div>
+        <div class="personality-grid">
+          <div class="personality-card personality-card-lead">
+            <h3>COMMENT MODIFIER</h3>
+            <p>Parle directement à NEXUS dans le chat, par exemple :</p>
+            <div class="action-examples personality-examples">
+              <code>"Sois plus concis et plus technique"</code>
+              <code>"Appelle-moi Commandant"</code>
+              <code>"Reste sobre et moins théâtral"</code>
+              <code>"Demande confirmation avant d'agir"</code>
+            </div>
+          </div>
+          <div class="personality-card">
+            <h3>IDENTITÉ</h3>
+            <div class="personality-row"><span>Nom d'interface</span><span id="pers-interfaceName">NEXUS</span></div>
+            <div class="personality-row"><span>Appellation utilisateur</span><span id="pers-address">Pilote</span></div>
+            <div class="personality-row"><span>Style</span><span id="pers-style">Cockpit</span></div>
+            <div class="personality-row"><span>Langue</span><span id="pers-language">Français</span></div>
+          </div>
+          <div class="personality-card">
+            <h3>STYLE DE RÉPONSE</h3>
+            <div class="personality-row"><span>Ton</span><span id="pers-tone">Direct</span></div>
+            <div class="personality-row"><span>Niveau de détail</span><span id="pers-detailLevel">Normal</span></div>
+            <div class="personality-row"><span>Mode de réponse</span><span id="pers-responseMode">Opérationnel</span></div>
+            <div class="personality-row"><span>Proactivité</span><span id="pers-proactivity">Équilibrée</span></div>
+          </div>
+          <div class="personality-card">
+            <h3>RÈGLES DE NOYAU</h3>
+            <div class="personality-row"><span>Confirmation</span><span id="pers-confirmation">Actions sensibles</span></div>
+            <div class="personality-row"><span>Rigueur technique</span><span id="pers-technicalRigour">Stricte</span></div>
+            <div class="personality-row"><span>Provider réel</span><span id="pers-provider">ollama</span></div>
+            <div class="personality-row"><span>Modèle réel</span><span id="pers-model">mistral</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ACTIONS PANEL ── -->
+      <div class="panel" id="panel-actions">
+        <div class="panel-header">
+          <h2>◆ JOURNAL ACTIONS IA</h2>
+          <div class="panel-header-actions">
+            <button class="action-btn red" onclick="clearActionsLog()">EFFACER</button>
+            <button class="panel-close-btn" onclick="closePanel()">RETOUR CENTRE</button>
+          </div>
+        </div>
+        <div class="actions-info">
+          <p>L'IA peut déclencher des actions directement dans votre cockpit. Exemples à envoyer dans le chat :</p>
+          <div class="action-examples">
+            <code>"Ajoute le projet NexusApp avec priorité haute"</code>
+            <code>"Crée une tâche: vérifier les serveurs ce soir"</code>
+            <code>"Lance une alerte critique: maintenance requise"</code>
+            <code>"Marque toutes les tâches comme terminées"</code>
+          </div>
+        </div>
+        <div class="actions-log" id="actions-log">
+          <div class="log-entry system">
+            <span class="log-time">--:--:--</span>
+            <span class="log-type sys">SYS</span>
+            <span class="log-msg">Journal d'actions initialisé. En attente de commandes IA...</span>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="cockpit-footer">
+      <span id="ai-status">IA: NON CONFIGURÉE</span>
+      <span id="last-action">Dernière action: aucune</span>
+      <span>NEXUS OS v2.0 — 2026</span>
+    </footer>
+
+  </div>
+
+  <!-- ═══════ SETTINGS MODAL ═══════ -->
+  <div class="modal-overlay" id="settings-modal" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>⚙ CONFIGURATION SYSTÈME</h2>
+        <button onclick="closeSettings()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-group">
+          <label>NOM DU PILOTE</label>
+          <input type="text" id="pilot-name" placeholder="Votre prénom">
+        </div>
+        <div class="setting-group">
+          <label>PROVIDER IA</label>
+          <select id="provider-select-settings" onchange="updateAIProvider(this.value)">
+            <option value="ollama">Local (Ollama)</option>
+            <option value="gemini">Gemini</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="openai">OpenAI</option>
+          </select>
+        </div>
+        <div class="setting-group">
+          <label>ARCHITECTURE</label>
+          <input type="text" value="Local Ollama ou providers cloud via serveur Node.js" disabled>
+          <small>En local, NEXUS utilise Ollama sur votre machine. Pour le cloud, configurez les clés dans .env. Le navigateur ne stocke plus de secret.</small>
+        </div>
+        <div class="setting-group">
+          <label>MODÈLE IA PAR DÉFAUT</label>
+          <select id="model-select-settings">
+            <option value="mistral">Local Mistral</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" onclick="closeSettings(); openDeckConfigModal()">CONFIGURER PAGES</button>
+        <button class="btn-save" onclick="saveSettings()">SAUVEGARDER</button>
+        <button class="btn-cancel" onclick="closeSettings()">ANNULER</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ DECK CONFIG MODAL ═══════ -->
+  <div class="modal-overlay" id="deck-config-modal" style="display:none">
+    <div class="modal modal-wide">
+      <div class="modal-header">
+        <h2>◈ CONFIGURATION DES PAGES</h2>
+        <button onclick="closeDeckConfigModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-group">
+          <label>PAGE À CONFIGURER</label>
+          <select id="deck-config-select" onchange="switchDeckConfigEditor(this.value)"></select>
+          <small>Tu peux renommer, ajouter ou supprimer des pages, puis ajuster chacun des 4 cadrans et leur feature.</small>
+        </div>
+        <div id="deck-config-form" class="deck-config-panel"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-save" onclick="saveDeckConfig()">SAUVEGARDER LES PAGES</button>
+        <button class="btn-cancel" onclick="closeDeckConfigModal()">ANNULER</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════ PROJECT MODAL ═══════ -->
+  <div class="modal-overlay" id="project-modal" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="project-modal-title">+ NOUVEAU PROJET</h2>
+        <button onclick="closeProjectModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="setting-group">
+          <label>NOM DU PROJET</label>
+          <input type="text" id="proj-name" placeholder="Nom du projet" onkeydown="if(event.key==='Enter')saveProject()">
+        </div>
+        <div class="setting-group">
+          <label>DESCRIPTION</label>
+          <textarea id="proj-desc" placeholder="Description courte..."></textarea>
+        </div>
+        <div class="setting-group">
+          <label>PRIORITÉ</label>
+          <select id="proj-priority">
+            <option value="high">HAUTE</option>
+            <option value="medium" selected>MOYENNE</option>
+            <option value="low">BASSE</option>
+          </select>
+        </div>
+        <div class="setting-group">
+          <label>STATUT</label>
+          <select id="proj-status">
+            <option value="active">ACTIF</option>
+            <option value="paused">EN PAUSE</option>
+            <option value="done">TERMINÉ</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-save" id="project-save-btn" onclick="saveProject()">CRÉER</button>
+        <button class="btn-cancel" onclick="closeProjectModal()">ANNULER</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="toast"></div>
+
+  <script src="feature-catalog.js"></script>
+  <script src="app.js"></script>
+  <script src="ai-context-router.js"></script>
+</body>
+</html>
