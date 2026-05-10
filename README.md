@@ -2,18 +2,15 @@
 
 ## Setup
 
-1. Install dependencies:
-   npm install
-2. Create an environment file:
-   copy .env.example .env
-3. Fill `GEMINI_API_KEY` and/or `OPENAI_API_KEY` in `.env`
-4. Start the server:
-   npm start
-5. Open `http://localhost:3000`
+1. Open `index.html` locally or publish the repository with GitHub Pages.
+2. Open `CONFIG` in the UI.
+3. Choose a cloud provider: Gemini, OpenAI, or OpenRouter.
+4. Paste the matching API key in the provider key field.
+5. Save the settings and use the chat directly from the browser.
 
 ## Notes
 
-- The frontend now calls `/api/chat` instead of calling AI providers directly.
-- API keys stay on the server in environment variables.
-- Supported providers: Ollama (local), Gemini, OpenAI, OpenRouter.
-- Local mode uses Ollama at `OLLAMA_BASE_URL` and defaults to the `llama3.2:latest` model.
+- The GitHub Pages version calls Gemini, OpenAI, or OpenRouter directly from the browser.
+- API keys are stored in the browser local storage for the active user.
+- Ollama remains a local-only experimental option and is not reliable from an HTTPS GitHub Pages origin.
+- `server.js` can still be used for a local Node/Express workflow, but it is no longer required for the hosted browser version.

@@ -18,6 +18,7 @@ const DEFAULT_PERSONALITY = {
   technicalRigour: 'stricte',
 };
 
+const API_KEY_STORAGE_PREFIX = 'nexus_api_key_';
 const DEFAULT_OLLAMA_MODEL = 'llama3.2:latest';
 const HOME_DECK_STORAGE_KEY = 'nexus_home_decks';
 const SELECTED_TASK_PROJECT_STORAGE_KEY = 'nexus_selected_task_project';
@@ -26,6 +27,12 @@ const DOCUMENT_STORAGE_KEY = 'nexus_documents';
 const FEATURE_CATALOG = globalThis.NEXUS_FEATURE_CATALOG || {};
 
 const HOME_SLOT_CLASSES = ['quad-chat', 'quad-dashboard', 'quad-realtime', 'quad-actions'];
+
+const PROVIDER_DEFAULT_MODELS = {
+  gemini: 'gemini-2.0-flash',
+  openrouter: 'openrouter/auto',
+  openai: 'gpt-4o-mini',
+};
 
 const HOME_DECKS = [
   {
@@ -75,8 +82,8 @@ const INITIAL_HOME_DECKS = loadHomeDecks();
 //  STATE
 // ═══════════════════════════════════════════════════════════════
 const S = {
-  provider:  localStorage.getItem('nexus_provider') || 'ollama',
-  model:     localStorage.getItem('nexus_model')    || DEFAULT_OLLAMA_MODEL,
+  provider:  localStorage.getItem('nexus_provider') || 'gemini',
+  model:     localStorage.getItem('nexus_model')    || 'gemini-2.0-flash',
   pilot:     localStorage.getItem('nexus_pilot')    || 'PILOTE',
   homeDecks: INITIAL_HOME_DECKS,
   activeDeck: clampDeckIndex(localStorage.getItem('nexus_active_deck') || 0, INITIAL_HOME_DECKS),
@@ -433,6 +440,7 @@ function updateAIProvider(val) {
   localStorage.setItem('nexus_provider', val);
   ensureValidModel();
   syncModelSelectors();
+  refreshApiKeyUI();
   if (changed) resetChatContext(`Provider actif: ${S.provider}`);
   refreshAIStatus();
 }
@@ -469,6 +477,57 @@ async function sendMessage() {
     removeTyping(typingId);
     appendMessage('error', `Erreur API : ${err.message}`);
   }
+}
+
+function getApiKeyStorageKey(provider = S.provider) {
+  return `${API_KEY_STORAGE_PREFIX}${provider}`;
+}
+
+function getProviderApiKey(provider = S.provider) {
+  return localStorage.getItem(getApiKeyStorageKey(provider)) || '';
+}
+
+function setProviderApiKey(provider, apiKey) {
+  const key = getApiKeyStorageKey(provider);
+  const normalized = String(apiKey || '').trim();
+  if (normalized) {
+    localStorage.setItem(key, normalized);
+  } else {
+    localStorage.removeItem(key);
+  }
+}
+
+function isDirectBrowserProvider(provider = S.provider) {
+  return provider === 'gemini' || provider === 'openai' || provider === 'openrouter';
+}
+
+function refreshApiKeyUI() {
+  const input = document.getElementById('provider-api-key');
+  const hint = document.getElementById('provider-api-key-hint');
+  const architecture = document.getElementById('architecture-summary');
+  if (input) {
+    input.value = getProviderApiKey(S.provider);
+    input.placeholder = `Clé API ${S.provider.toUpperCase()}`;
+    input.disabled = !isDirectBrowserProvider(S.provider);
+  }
+  if (hint) {
+    if (isDirectBrowserProvider(S.provider)) {
+      hint.textContent = `La clé ${S.provider.toUpperCase()} est stockée dans ce navigateur et utilisée pour des appels directs au provider cloud.`;
+    } else {
+      hint.textContent = 'Ollama local n est pas disponible de façon fiable depuis GitHub Pages en HTTPS. Utilise un provider cloud pour la version hébergée.';
+    }
+  }
+  if (architecture) {
+    architecture.value = isDirectBrowserProvider(S.provider)
+      ? 'GitHub Pages + appels directs navigateur vers le provider cloud'
+      : 'Mode local expérimental depuis GitHub Pages';
+  }
+}
+
+function saveCurrentProviderApiKey() {
+  const input = document.getElementById('provider-api-key');
+  if (!input) return;
+  setProviderApiKey(S.provider, input.value);
 }
 
 /* Build system prompt with current context */
@@ -554,27 +613,22 @@ RÈGLE DE MODE :
 
 async function callAI(userMsg) {
   const policy = arguments[1] || buildAIContextPolicy(userMsg);
-  const response = await fetch('/api/chat', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      provider: S.provider,
-      model: S.model,
-      systemPrompt: buildSystemPrompt(userMsg, policy),
-      history: getAIHistory(policy),
-      message: userMsg,
-    }),
-  });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${response.status}`);
+  const apiKey = getProviderApiKey(S.provider);
+  if (!isDirectBrowserProvider(S.provider)) {
+    throw new Error('Ce provider n est pas disponible sur GitHub Pages. Choisis Gemini, OpenAI ou OpenRouter.');
+  }
+  if (!apiKey) {
+    throw new Error(`Clé API ${S.provider.toUpperCase()} manquante. Ouvre CONFIG et renseigne-la.`);
   }
 
-  const data  = await response.json();
-  const rawReply = data.reply || '(pas de réponse)';
+  const rawReply = await callDirectProvider({
+    provider: S.provider,
+    apiKey,
+    model: S.model,
+    systemPrompt: buildSystemPrompt(userMsg, policy),
+    history: getAIHistory(policy),
+    userMessage: userMsg,
+  });
   const reply = policy.allowActions
     ? rawReply
     : stripActionBlocks(rawReply) || 'Je n ai pas de réponse textuelle fiable à partir de cette lecture ciblée.';
@@ -585,6 +639,148 @@ async function callAI(userMsg) {
   if (S.history.length > 30) S.history = S.history.slice(-30);
 
   return { reply, policy };
+}
+
+async function callDirectProvider({ provider, apiKey, model, systemPrompt, history, userMessage }) {
+  if (provider === 'openai') {
+    return callBrowserOpenAI({ apiKey, model, systemPrompt, history, userMessage });
+  }
+  if (provider === 'openrouter') {
+    return callBrowserOpenRouter({ apiKey, model, systemPrompt, history, userMessage });
+  }
+  if (provider === 'gemini') {
+    return callBrowserGemini({ apiKey, model, systemPrompt, history, userMessage });
+  }
+  throw new Error(`Provider non supporté dans le navigateur : ${provider}`);
+}
+
+async function callBrowserOpenAI({ apiKey, model, systemPrompt, history, userMessage }) {
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: model || PROVIDER_DEFAULT_MODELS.openai,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...normalizeOpenAIHistory(history),
+        { role: 'user', content: userMessage },
+      ],
+      max_tokens: 900,
+      temperature: 0.72,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error?.message || `OpenAI HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '(pas de réponse)';
+}
+
+async function callBrowserOpenRouter({ apiKey, model, systemPrompt, history, userMessage }) {
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': window.location.href,
+      'X-Title': 'NEXUS OS Cockpit',
+    },
+    body: JSON.stringify({
+      model: model || PROVIDER_DEFAULT_MODELS.openrouter,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...normalizeOpenAIHistory(history),
+        { role: 'user', content: userMessage },
+      ],
+      max_tokens: 900,
+      temperature: 0.72,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error?.message || `OpenRouter HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || '(pas de réponse)';
+}
+
+async function callBrowserGemini({ apiKey, model, systemPrompt, history, userMessage }) {
+  const endpoint = new URL(`https://generativelanguage.googleapis.com/v1beta/models/${model || PROVIDER_DEFAULT_MODELS.gemini}:generateContent`);
+  endpoint.searchParams.set('key', apiKey);
+
+  const contents = [];
+  if (systemPrompt) {
+    contents.push({
+      role: 'user',
+      parts: [{ text: `INSTRUCTIONS SYSTEME:\n${systemPrompt}` }],
+    });
+    contents.push({
+      role: 'model',
+      parts: [{ text: 'Instructions systeme recues.' }],
+    });
+  }
+
+  for (const item of normalizeGeminiHistory(history)) {
+    contents.push(item);
+  }
+
+  contents.push({
+    role: 'user',
+    parts: [{ text: userMessage }],
+  });
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contents,
+      generationConfig: {
+        temperature: 0.72,
+        maxOutputTokens: 900,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error?.message || `Gemini HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const reply = data.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
+  if (!reply) {
+    throw new Error('Gemini a renvoyé une réponse vide.');
+  }
+
+  return reply;
+}
+
+function normalizeOpenAIHistory(history) {
+  return history
+    .filter(item => item && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string')
+    .map(item => ({
+      role: item.role === 'assistant' ? 'assistant' : 'user',
+      content: item.content,
+    }));
+}
+
+function normalizeGeminiHistory(history) {
+  return history
+    .filter(item => item && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string')
+    .map(item => ({
+      role: item.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: item.content }],
+    }));
 }
 
 function getLocalReadReply(policy) {
@@ -1461,6 +1657,7 @@ function openSettings() {
   document.getElementById('pilot-name').value = S.pilot;
   document.getElementById('provider-select-settings').value = S.provider;
   syncModelSelectors();
+  refreshApiKeyUI();
   document.getElementById('settings-modal').style.display = 'flex';
 }
 
@@ -1639,6 +1836,7 @@ function saveSettings() {
   S.pilot  = document.getElementById('pilot-name').value.trim() || 'PILOTE';
   S.provider = document.getElementById('provider-select-settings').value;
   S.model  = document.getElementById('model-select-settings').value;
+  saveCurrentProviderApiKey();
 
   localStorage.setItem('nexus_pilot',   S.pilot);
   localStorage.setItem('nexus_provider', S.provider);
@@ -1660,7 +1858,7 @@ function saveSettings() {
 function refreshAIStatus() {
   const el = document.getElementById('ai-status');
   if (!el) return;
-  const transport = S.provider === 'ollama' ? 'VIA OLLAMA' : 'VIA SERVEUR';
+  const transport = isDirectBrowserProvider(S.provider) ? 'VIA NAVIGATEUR' : 'LOCAL NON GARANTI';
   el.textContent = `IA: ${S.provider.toUpperCase()} — ${S.model} — ${transport}`;
   el.style.color = 'var(--green)';
   setText('pers-provider', S.provider);
@@ -1968,7 +2166,7 @@ function normalizeDeckText(value, fallback) {
 
 function normalizeAIState() {
   if (!MODEL_OPTIONS[S.provider]) {
-    S.provider = 'ollama';
+    S.provider = 'gemini';
   }
   if (S.provider === 'ollama' && (S.model === 'mistral' || S.model === 'llama3.2:3b')) {
     S.model = DEFAULT_OLLAMA_MODEL;

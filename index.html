@@ -94,7 +94,7 @@
             <span class="msg-icon">◈</span>
             <div class="msg-content">
               <div class="msg-header">NEXUS IA <span class="msg-time">--:--</span></div>
-              <div class="msg-text">Bienvenue dans NEXUS OS. Choisissez votre provider IA via ⚙ CONFIG, puis lancez le serveur Node.js pour activer le chat. Je peux aussi déclencher des actions dans votre cockpit — dites-moi d'ajouter un projet, créer une tâche, ou lancer une alerte.</div>
+              <div class="msg-text">Bienvenue dans NEXUS OS. Choisissez votre provider IA via ⚙ CONFIG, collez votre clé API dans ce navigateur, puis lancez le chat. Je peux aussi déclencher des actions dans votre cockpit — dites-moi d'ajouter un projet, créer une tâche, ou lancer une alerte.</div>
             </div>
           </div>
         </div>
@@ -289,21 +289,26 @@
         <div class="setting-group">
           <label>PROVIDER IA</label>
           <select id="provider-select-settings" onchange="updateAIProvider(this.value)">
-            <option value="ollama">Local (Ollama)</option>
             <option value="gemini">Gemini</option>
             <option value="openrouter">OpenRouter</option>
             <option value="openai">OpenAI</option>
+            <option value="ollama">Ollama local (experimental)</option>
           </select>
         </div>
         <div class="setting-group">
           <label>ARCHITECTURE</label>
-          <input type="text" value="Local Ollama ou providers cloud via serveur Node.js" disabled>
-          <small>En local, NEXUS utilise Ollama sur votre machine. Pour le cloud, configurez les clés dans .env. Le navigateur ne stocke plus de secret.</small>
+          <input type="text" id="architecture-summary" value="GitHub Pages + appels directs navigateur vers le provider cloud" disabled>
+          <small>Cette version GitHub Pages appelle directement le provider cloud depuis le navigateur. La clé API reste stockée localement dans ce navigateur.</small>
+        </div>
+        <div class="setting-group">
+          <label>CLÉ API DU PROVIDER</label>
+          <input type="password" id="provider-api-key" placeholder="Clé API provider" autocomplete="off" spellcheck="false">
+          <small id="provider-api-key-hint">La clé du provider actif est stockée dans ce navigateur et utilisée pour des appels directs au provider cloud.</small>
         </div>
         <div class="setting-group">
           <label>MODÈLE IA PAR DÉFAUT</label>
           <select id="model-select-settings">
-            <option value="mistral">Local Mistral</option>
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
           </select>
         </div>
       </div>
