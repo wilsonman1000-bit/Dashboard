@@ -19,6 +19,11 @@ const DEFAULT_PERSONALITY = {
 };
 
 const API_KEY_STORAGE_PREFIX = 'nexus_api_key_';
+const EMBEDDED_PROVIDER_KEYS = {
+  gemini: 'AIzaSyBCA69LNFK6STdu96z-1KOukEv-puIulBM',
+  openai: '',
+  openrouter: '',
+};
 const DEFAULT_OLLAMA_MODEL = 'llama3.2:latest';
 const HOME_DECK_STORAGE_KEY = 'nexus_home_decks';
 const SELECTED_TASK_PROJECT_STORAGE_KEY = 'nexus_selected_task_project';
@@ -484,7 +489,7 @@ function getApiKeyStorageKey(provider = S.provider) {
 }
 
 function getProviderApiKey(provider = S.provider) {
-  return localStorage.getItem(getApiKeyStorageKey(provider)) || '';
+  return localStorage.getItem(getApiKeyStorageKey(provider)) || EMBEDDED_PROVIDER_KEYS[provider] || '';
 }
 
 function setProviderApiKey(provider, apiKey) {
